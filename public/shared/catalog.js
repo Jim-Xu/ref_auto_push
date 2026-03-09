@@ -17,6 +17,10 @@ export const SOURCE_REGISTRY = {
 };
 
 export const SEEDED_JOURNALS = [
+  { id: "science", title: "Science", issn: "0036-8075", source: "crossref", seeded: true },
+  { id: "nature", title: "Nature", issn: "1476-4687", source: "crossref", seeded: true },
+  { id: "pnas", title: "Proceedings of the National Academy of Sciences", issn: "1091-6490", source: "crossref", seeded: true },
+  { id: "grl", title: "Geophysical Research Letters", issn: "1944-8007", source: "crossref", seeded: true },
   { id: "acp", title: "Atmospheric Chemistry and Physics", issn: "1680-7324", source: "crossref", seeded: true },
   { id: "ae", title: "Atmospheric Environment", issn: "1352-2310", source: "crossref", seeded: true },
   { id: "ast", title: "Aerosol Science and Technology", issn: "1521-7388", source: "crossref", seeded: true },

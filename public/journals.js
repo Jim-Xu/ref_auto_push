@@ -117,7 +117,7 @@ searchForm.addEventListener("submit", async (event) => {
   try {
     const results = await searchCrossrefJournals(searchField.value);
     renderRemoteResults(results);
-    journalStatus.textContent = `${results.length} journal results loaded from Crossref.`;
+    journalStatus.textContent = `${results.length} journal results loaded from Crossref search and title fallback.`;
   } catch (error) {
     resultsBanner.textContent = error.message;
     resultsBanner.classList.remove("is-hidden");

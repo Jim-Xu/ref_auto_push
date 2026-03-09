@@ -157,6 +157,94 @@ async function fetchJson(url) {
   return response.json();
 }
 
+function scoreJournalCandidate(candidate, searchTerm) {
+  const normalizedSearch = normalizeText(searchTerm);
+  const normalizedTitle = normalizeText(candidate.title);
+  const normalizedIssn = normalizeText(candidate.issn || "");
+
+  if (!normalizedSearch) {
+    return 0;
+  }
+
+  if (normalizedIssn === normalizedSearch) {
+    return 200;
+  }
+
+  if (normalizedTitle === normalizedSearch) {
+    return 150;
+  }
+
+  if (normalizedTitle.startsWith(`${normalizedSearch} `) || normalizedTitle.startsWith(`${normalizedSearch}:`)) {
+    return 120;
+  }
+
+  if (normalizedTitle.startsWith(normalizedSearch)) {
+    return 100;
+  }
+
+  if (normalizedTitle.includes(normalizedSearch)) {
+    return 70;
+  }
+
+  return 0;
+}
+
+function dedupeJournalCandidates(candidates) {
+  const seen = new Set();
+  return candidates.filter((candidate) => {
+    const key = `${normalizeText(candidate.title)}::${candidate.issn || ""}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+function sortJournalCandidates(candidates, searchTerm) {
+  return [...candidates].sort((left, right) => {
+    const scoreDiff = scoreJournalCandidate(right, searchTerm) - scoreJournalCandidate(left, searchTerm);
+    if (scoreDiff !== 0) {
+      return scoreDiff;
+    }
+
+    return left.title.localeCompare(right.title);
+  });
+}
+
+async function searchCrossrefJournalIndex(term) {
+  const url = new URL(`${CROSSREF_BASE_URL}/journals`);
+  url.searchParams.set("query", term);
+  url.searchParams.set("rows", "50");
+
+  const payload = await fetchJson(url);
+  const items = Array.isArray(payload.message?.items) ? payload.message.items : [];
+
+  return items.map((item) => ({
+    title: item.title || "Untitled journal",
+    issn: Array.isArray(item.ISSN) ? item.ISSN[0] || "" : "",
+    source: "crossref"
+  }));
+}
+
+async function searchCrossrefWorksForJournals(term) {
+  const url = new URL(`${CROSSREF_BASE_URL}/works`);
+  url.searchParams.set("query.container-title", term);
+  url.searchParams.set("rows", "25");
+  url.searchParams.set("select", "container-title,ISSN");
+
+  const payload = await fetchJson(url);
+  const items = Array.isArray(payload.message?.items) ? payload.message.items : [];
+
+  return items
+    .map((item) => ({
+      title: Array.isArray(item["container-title"]) ? item["container-title"][0] || "" : "",
+      issn: Array.isArray(item.ISSN) ? item.ISSN[0] || "" : "",
+      source: "crossref"
+    }))
+    .filter((item) => item.title);
+}
+
 function buildJournalQueryUrl(journal, dateWindow) {
   const url = journal.issn
     ? new URL(`${CROSSREF_BASE_URL}/journals/${encodeURIComponent(journal.issn)}/works`)
@@ -181,18 +269,15 @@ export async function searchCrossrefJournals(term) {
     return [];
   }
 
-  const url = new URL(`${CROSSREF_BASE_URL}/journals`);
-  url.searchParams.set("query", cleaned);
-  url.searchParams.set("rows", "10");
+  const [journalIndexResults, worksResults] = await Promise.all([
+    searchCrossrefJournalIndex(cleaned),
+    searchCrossrefWorksForJournals(cleaned)
+  ]);
 
-  const payload = await fetchJson(url);
-  const items = Array.isArray(payload.message?.items) ? payload.message.items : [];
-
-  return items.map((item) => ({
-    title: item.title || "Untitled journal",
-    issn: Array.isArray(item.ISSN) ? item.ISSN[0] || "" : "",
-    source: "crossref"
-  }));
+  return sortJournalCandidates(
+    dedupeJournalCandidates([...journalIndexResults, ...worksResults]),
+    cleaned
+  ).slice(0, 20);
 }
 
 function buildPubMedTerm(journal, dateWindow) {
