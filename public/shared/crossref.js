@@ -2,6 +2,8 @@ import { SOURCE_REGISTRY } from "./catalog.js";
 import { getJournalLibrary } from "./storage.js";
 
 const CROSSREF_BASE_URL = "https://api.crossref.org";
+const PUBMED_BASE_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils";
+const ARXIV_BASE_URL = "https://export.arxiv.org/api/query";
 const MAX_QUERY_COUNT = 12;
 
 function normalizeText(value) {
@@ -128,6 +130,22 @@ async function fetchJson(url) {
   return response.json();
 }
 
+async function fetchText(url) {
+  let response;
+
+  try {
+    response = await fetch(url.toString());
+  } catch (error) {
+    throw new Error(`Network request failed: ${error.message}`);
+  }
+
+  if (!response.ok) {
+    throw new Error(`Request failed: ${response.status}`);
+  }
+
+  return response.text();
+}
+
 function buildJournalQueryUrl(journal, topic, dateWindow) {
   const url = journal.issn
     ? new URL(`${CROSSREF_BASE_URL}/journals/${encodeURIComponent(journal.issn)}/works`)
@@ -170,18 +188,7 @@ export async function searchCrossrefJournals(term) {
   }));
 }
 
-export async function loadDailyDigest({ user, filters }) {
-  const library = getJournalLibrary(user);
-  const subscribedJournals = library.filter((journal) => user.preferences.subscribedJournalIds.includes(journal.id));
-  const topics = user.preferences.topics || [];
-  const dateWindow = getDateWindow(filters);
-  const warnings = [];
-  const papers = [];
-
-  if (subscribedJournals.length === 0) {
-    throw new Error("No journals are subscribed yet. Add journals on the Journal Subscriptions page first.");
-  }
-
+function buildCrossrefPapers({ subscribedJournals, topics, dateWindow }) {
   const queries = [];
   if (topics.length === 0) {
     subscribedJournals.forEach((journal) => queries.push({ journal, topic: "" }));
@@ -190,18 +197,183 @@ export async function loadDailyDigest({ user, filters }) {
       topics.forEach((topic) => queries.push({ journal, topic }));
     });
   }
+  return queries.slice(0, MAX_QUERY_COUNT);
+}
 
-  for (const query of queries.slice(0, MAX_QUERY_COUNT)) {
+function buildPubMedTerm(journal, topics, dateWindow) {
+  const topicTerm = topics.length > 0
+    ? ` AND (${topics.map((topic) => `"${topic}"`).join(" OR ")})`
+    : "";
+
+  return `("${journal.title}"[jour])${topicTerm} AND ("${dateWindow.fromDate}"[Date - Publication] : "${dateWindow.toDate}"[Date - Publication])`;
+}
+
+function buildPubMedSearchUrl(term) {
+  const url = new URL(`${PUBMED_BASE_URL}/esearch.fcgi`);
+  url.searchParams.set("db", "pubmed");
+  url.searchParams.set("retmode", "json");
+  url.searchParams.set("sort", "pub_date");
+  url.searchParams.set("retmax", "6");
+  url.searchParams.set("term", term);
+  return url;
+}
+
+function buildPubMedSummaryUrl(ids) {
+  const url = new URL(`${PUBMED_BASE_URL}/esummary.fcgi`);
+  url.searchParams.set("db", "pubmed");
+  url.searchParams.set("retmode", "json");
+  url.searchParams.set("id", ids.join(","));
+  return url;
+}
+
+function mapPubMedPaper(summary, topics) {
+  const articleIds = Array.isArray(summary.articleids) ? summary.articleids : [];
+  const doiEntry = articleIds.find((entry) => entry.idtype === "doi");
+  const authors = Array.isArray(summary.authors) ? summary.authors.map((author) => author.name).filter(Boolean) : [];
+
+  return {
+    id: `pubmed-${summary.uid}`,
+    doi: doiEntry?.value || "",
+    title: summary.title || "Untitled",
+    journal: summary.fulljournalname || summary.source || "PubMed",
+    abstract: "",
+    authors,
+    publishedAt: summary.pubdate || "",
+    url: `https://pubmed.ncbi.nlm.nih.gov/${summary.uid}/`,
+    matchedTopics: [],
+    sourceId: "pubmed",
+    sourceLabel: SOURCE_REGISTRY.pubmed.label,
+    score: 0
+  };
+}
+
+async function loadPubMedPapers({ subscribedJournals, topics, dateWindow }) {
+  const papers = [];
+  const warnings = [];
+
+  for (const journal of subscribedJournals.slice(0, 6)) {
     try {
-      const payload = await fetchJson(buildJournalQueryUrl(query.journal, query.topic, dateWindow));
-      const items = Array.isArray(payload.message?.items) ? payload.message.items : [];
+      const searchPayload = await fetchJson(buildPubMedSearchUrl(buildPubMedTerm(journal, topics, dateWindow)));
+      const ids = Array.isArray(searchPayload.esearchresult?.idlist) ? searchPayload.esearchresult.idlist : [];
 
-      items.forEach((item) => {
-        papers.push(mapCrossrefPaper(item, query.journal.title, query.topic ? [query.topic] : []));
-      });
+      if (ids.length === 0) {
+        continue;
+      }
+
+      const summaryPayload = await fetchJson(buildPubMedSummaryUrl(ids.slice(0, 6)));
+      const summaries = ids
+        .map((id) => summaryPayload.result?.[id])
+        .filter(Boolean)
+        .map((summary) => mapPubMedPaper(summary, topics));
+
+      papers.push(...summaries);
     } catch (error) {
-      warnings.push(`${query.journal.title}: ${error.message}`);
+      warnings.push(`PubMed · ${journal.title}: ${error.message}`);
     }
+  }
+
+  return { papers, warnings };
+}
+
+function buildArxivUrl(topic) {
+  const url = new URL(ARXIV_BASE_URL);
+  url.searchParams.set("search_query", `all:"${topic}"`);
+  url.searchParams.set("start", "0");
+  url.searchParams.set("max_results", "6");
+  url.searchParams.set("sortBy", "submittedDate");
+  url.searchParams.set("sortOrder", "descending");
+  return url;
+}
+
+function getTextFromTag(node, tagName) {
+  return node.getElementsByTagName(tagName)?.[0]?.textContent?.trim() || "";
+}
+
+function mapArxivPaper(entry, topic) {
+  const authors = Array.from(entry.getElementsByTagName("author"))
+    .map((authorNode) => authorNode.getElementsByTagName("name")?.[0]?.textContent?.trim() || "")
+    .filter(Boolean);
+  const links = Array.from(entry.getElementsByTagName("link"));
+  const alternateLink = links.find((link) => link.getAttribute("rel") === "alternate") || links[0];
+
+  return {
+    id: getTextFromTag(entry, "id") || `arxiv-${crypto.randomUUID()}`,
+    doi: "",
+    title: getTextFromTag(entry, "title") || "Untitled",
+    journal: "arXiv",
+    abstract: getTextFromTag(entry, "summary"),
+    authors,
+    publishedAt: getTextFromTag(entry, "published"),
+    url: alternateLink?.getAttribute("href") || "",
+    matchedTopics: [topic],
+    sourceId: "arxiv",
+    sourceLabel: SOURCE_REGISTRY.arxiv.label,
+    score: 0
+  };
+}
+
+async function loadArxivPapers(topics) {
+  const papers = [];
+  const warnings = [];
+
+  for (const topic of topics.slice(0, 4)) {
+    try {
+      const xml = await fetchText(buildArxivUrl(topic));
+      const parsed = new DOMParser().parseFromString(xml, "application/xml");
+      const entries = Array.from(parsed.getElementsByTagName("entry"));
+      entries.forEach((entry) => papers.push(mapArxivPaper(entry, topic)));
+    } catch (error) {
+      warnings.push(`arXiv · ${topic}: ${error.message}`);
+    }
+  }
+
+  return { papers, warnings };
+}
+
+export async function loadDailyDigest({ user, filters }) {
+  const library = getJournalLibrary(user);
+  const subscribedJournals = library.filter((journal) => user.preferences.subscribedJournalIds.includes(journal.id));
+  const topics = user.preferences.topics || [];
+  const enabledSources = user.preferences.sources || {};
+  const dateWindow = getDateWindow(filters);
+  const warnings = [];
+  const papers = [];
+
+  if (subscribedJournals.length === 0) {
+    throw new Error("No journals are subscribed yet. Add journals on the Journal Subscriptions page first.");
+  }
+
+  if (!Object.values(enabledSources).some(Boolean)) {
+    throw new Error("Enable at least one data source on the Keyword Subscriptions page.");
+  }
+
+  if (enabledSources.crossref) {
+    const queries = buildCrossrefPapers({ subscribedJournals, topics, dateWindow });
+
+    for (const query of queries) {
+      try {
+        const payload = await fetchJson(buildJournalQueryUrl(query.journal, query.topic, dateWindow));
+        const items = Array.isArray(payload.message?.items) ? payload.message.items : [];
+
+        items.forEach((item) => {
+          papers.push(mapCrossrefPaper(item, query.journal.title, query.topic ? [query.topic] : []));
+        });
+      } catch (error) {
+        warnings.push(`Crossref · ${query.journal.title}: ${error.message}`);
+      }
+    }
+  }
+
+  if (enabledSources.pubmed) {
+    const pubMedResult = await loadPubMedPapers({ subscribedJournals, topics, dateWindow });
+    papers.push(...pubMedResult.papers);
+    warnings.push(...pubMedResult.warnings);
+  }
+
+  if (enabledSources.arxiv && topics.length > 0) {
+    const arxivResult = await loadArxivPapers(topics);
+    papers.push(...arxivResult.papers);
+    warnings.push(...arxivResult.warnings);
   }
 
   const rankedPapers = dedupePapers(papers)

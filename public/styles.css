@@ -316,6 +316,19 @@ p {
   gap: 12px;
 }
 
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+}
+
+.switch input {
+  min-height: auto;
+  width: 18px;
+  height: 18px;
+}
+
 .auth-modal {
   position: fixed;
   inset: 0;

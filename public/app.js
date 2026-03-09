@@ -89,7 +89,7 @@ function renderDigestHeader(user) {
   renderChips("#journal-chips", subscribedJournals, (journal) => journal.title);
   renderChips("#topic-chips", user.preferences.topics);
 
-  const sources = Object.values(getSourceRegistry()).filter((source) => source.status !== "off");
+  const sources = Object.values(getSourceRegistry()).filter((source) => user.preferences.sources[source.id]);
   renderChips("#source-chips", sources, (source) => `${source.label} · ${source.status}`);
 }
 

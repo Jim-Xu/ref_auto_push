@@ -35,8 +35,8 @@ Then open [http://127.0.0.1:3000](http://127.0.0.1:3000).
 ## Data Sources
 
 - `Crossref`: live in the current static build
-- `PubMed`: included in the source model as planned
-- `arXiv`: included in the source model as planned
+- `PubMed`: wired into the browser client as an experimental source
+- `arXiv`: wired into the browser client as an experimental source
 
 The current fetch logic lives in [crossref.js](public/shared/crossref.js).
 
@@ -57,6 +57,7 @@ The published GitHub Pages version uses a browser-local account system:
 - accounts are stored in `localStorage`
 - passwords are hashed in the browser before storage
 - subscriptions are isolated per browser profile
+- source toggles are also stored per user profile
 
 This is compatible with GitHub Pages, but it is not a real shared backend auth system. If you later want cross-device accounts, shared sync, or secure server-side auth, the next upgrade path should be Supabase, Firebase, or another hosted backend.
 
@@ -73,5 +74,5 @@ After that, every push to `main` will deploy the contents of [public](public).
 ## Current Limitations
 
 - Crossref browser access still depends on public API availability and CORS behavior.
-- `PubMed` and `arXiv` are modeled in the app but not yet wired into live client-side fetching.
+- `PubMed` and `arXiv` are now available as experimental browser-side sources, but they may still fail depending on browser CORS behavior or upstream availability.
 - The current sign-in model is browser-local, not cloud-backed.

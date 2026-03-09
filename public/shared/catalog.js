@@ -7,12 +7,12 @@ export const SOURCE_REGISTRY = {
   pubmed: {
     id: "pubmed",
     label: "PubMed",
-    status: "planned"
+    status: "experimental"
   },
   arxiv: {
     id: "arxiv",
     label: "arXiv",
-    status: "planned"
+    status: "experimental"
   }
 };
 

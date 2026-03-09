@@ -9,7 +9,7 @@ function buildDefaultPreferences() {
     topics: SUGGESTED_TOPICS.slice(0, 4),
     sources: {
       crossref: true,
-      pubmed: false,
+      pubmed: true,
       arxiv: false
     }
   };
@@ -197,6 +197,16 @@ export function addTopic(topic) {
 export function removeTopic(topic) {
   return patchCurrentUser((user) => {
     user.preferences.topics = user.preferences.topics.filter((entry) => entry !== topic);
+    return user;
+  });
+}
+
+export function toggleSource(sourceId) {
+  return patchCurrentUser((user) => {
+    user.preferences.sources = {
+      ...user.preferences.sources,
+      [sourceId]: !user.preferences.sources[sourceId]
+    };
     return user;
   });
 }

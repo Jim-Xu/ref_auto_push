@@ -1,9 +1,10 @@
 import { SUGGESTED_TOPICS } from "./shared/catalog.js";
-import { addTopic, getCurrentUser, removeTopic } from "./shared/storage.js";
+import { addTopic, getCurrentUser, getSourceRegistry, removeTopic, toggleSource } from "./shared/storage.js";
 import { bootstrapSession } from "./shared/session-ui.js";
 
 const topicList = document.querySelector("#topic-list");
 const suggestedTopics = document.querySelector("#suggested-topics");
+const sourceList = document.querySelector("#source-list");
 const topicForm = document.querySelector("#topic-form");
 const topicInput = document.querySelector("#topic-input");
 
@@ -57,15 +58,50 @@ function renderSuggestions() {
   });
 }
 
+function renderSources() {
+  sourceList.innerHTML = "";
+
+  if (!activeUser) {
+    sourceList.innerHTML = `<div class="empty-state">Sign in to manage data sources.</div>`;
+    return;
+  }
+
+  const registry = getSourceRegistry();
+  Object.values(registry).forEach((source) => {
+    const enabled = Boolean(activeUser.preferences.sources[source.id]);
+    const item = document.createElement("article");
+    item.className = "topic-item";
+    item.innerHTML = `
+      <div>
+        <div class="table-title">${source.label}</div>
+        <div class="table-meta">${source.status === "live" ? "Browser-ready" : "Experimental browser fetch"}</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" ${enabled ? "checked" : ""} />
+        <span>${enabled ? "Enabled" : "Disabled"}</span>
+      </label>
+    `;
+
+    item.querySelector("input").addEventListener("change", () => {
+      activeUser = toggleSource(source.id);
+      renderSources();
+    });
+
+    sourceList.appendChild(item);
+  });
+}
+
 bootstrapSession({
   onAuthenticated(user) {
     activeUser = getCurrentUser() || user;
     renderTopics();
+    renderSources();
     renderSuggestions();
   },
   onSignedOut() {
     activeUser = null;
     topicList.innerHTML = "";
+    sourceList.innerHTML = "";
     suggestedTopics.innerHTML = "";
   }
 });
@@ -80,6 +116,7 @@ topicForm.addEventListener("submit", (event) => {
     activeUser = addTopic(topicInput.value);
     topicInput.value = "";
     renderTopics();
+    renderSources();
     renderSuggestions();
   } catch (error) {
     topicInput.setCustomValidity(error.message);
