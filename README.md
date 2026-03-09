@@ -1,66 +1,77 @@
-# Literature Scout MVP
+# Literature Discovery
 
-A local web prototype for literature discovery. It supports:
+A GitHub Pages-friendly literature dashboard for daily journal digests.
 
-- Custom journal lists
-- Custom keyword lists
-- A "last N days" mode or a custom date range
-- Automated paper lookup through Crossref
-- Relevance ranking and summary generation
-- A results dashboard with overview, signals, top papers, and the full paper list
+## What Changed
 
-## How to run
+- The home page is now a focused `Daily Digest` view with a refresh button and time mode.
+- Journal subscriptions moved to a dedicated `Journal Subscriptions` page.
+- Keywords moved to an optional `Keyword Subscriptions` page.
+- The app now ships with seeded atmospheric science journals.
+- Journal search supports title or ISSN lookup through Crossref.
+- A browser-local sign-in layer separates subscriptions for different users on the same published site.
+- GitHub Pages deployment is configured through [deploy-pages.yml](.github/workflows/deploy-pages.yml).
+
+## How It Works
+
+This app is now a static multi-page site under [public](public). That means:
+
+- GitHub Pages can publish it directly.
+- The browser calls public APIs directly.
+- Local preview still works with:
 
 ```bash
 npm start
 ```
 
-Then open [http://127.0.0.1:3000](http://127.0.0.1:3000) in your browser.
+Then open [http://127.0.0.1:3000](http://127.0.0.1:3000).
 
-If you run `npm run`, npm will only list available scripts. The actual command for this app is `npm start` or `npm run start`.
+## Pages and Navigation
 
-## How to define journals
+- [index.html](public/index.html): daily digest
+- [journals.html](public/journals.html): journal subscription management
+- [topics.html](public/topics.html): optional keyword subscriptions
 
-Enter journals in the `Journals` field:
+## Data Sources
 
-- One journal per line, or separated by commas
-- Prefer official journal titles such as `Nature`, `Science`, `Cell`, `The Lancet`, `Nature Biotechnology`
-- Matching is based on the Crossref container title, so exact or near-exact names work best
-- If you leave the journal field empty, the app searches broadly across journals
+- `Crossref`: live in the current static build
+- `PubMed`: included in the source model as planned
+- `arXiv`: included in the source model as planned
 
-Examples:
+The current fetch logic lives in [crossref.js](public/shared/crossref.js).
 
-```text
-Nature
-Science
-Cell
-Nature Biotechnology
-```
+## Journal Management
 
-## Optional environment variables
+Seeded atmospheric science journals are defined in [catalog.js](public/shared/catalog.js).
 
-```bash
-PORT=3000
-HOST=127.0.0.1
-CROSSREF_MAILTO=you@example.com
-OPENAI_API_KEY=your_key
-OPENAI_MODEL=gpt-4.1-mini
-```
+Users can:
 
-Notes:
+- subscribe or unsubscribe seeded journals
+- search Crossref by journal title or ISSN
+- add custom journals from search results into their own directory
 
-- Without `OPENAI_API_KEY`, the app uses local rule-based summarization.
-- With `OPENAI_API_KEY`, it will try to call the OpenAI Responses API for a more natural English summary, and automatically fall back to local analysis if that fails.
+## Sign-In Model
 
-## Current limitations
+The published GitHub Pages version uses a browser-local account system:
 
-- The current source is Crossref, which is suitable for a cross-journal MVP.
-- Journal matching is based on normalized container-title matching, so naming differences across platforms can affect recall.
-- Some records do not include abstracts; the UI keeps the metadata and links out to the paper.
+- accounts are stored in `localStorage`
+- passwords are hashed in the browser before storage
+- subscriptions are isolated per browser profile
 
-## Obvious next steps
+This is compatible with GitHub Pages, but it is not a real shared backend auth system. If you later want cross-device accounts, shared sync, or secure server-side auth, the next upgrade path should be Supabase, Firebase, or another hosted backend.
 
-- Add PubMed, arXiv, OpenAlex, and publisher-specific APIs
-- Save reusable search templates
-- Add scheduled runs and digest delivery
-- Extract richer structure such as research question, methods, findings, and limitations
+## GitHub Pages Setup
+
+The workflow is already added. In the GitHub repository settings:
+
+1. Open `Settings`
+2. Open `Pages`
+3. Set `Source` to `GitHub Actions`
+
+After that, every push to `main` will deploy the contents of [public](public).
+
+## Current Limitations
+
+- Crossref browser access still depends on public API availability and CORS behavior.
+- `PubMed` and `arXiv` are modeled in the app but not yet wired into live client-side fetching.
+- The current sign-in model is browser-local, not cloud-backed.

@@ -1,161 +1,157 @@
-const form = document.querySelector("#search-form");
-const timePresetField = document.querySelector("#timePreset");
-const latestFields = document.querySelector("#latest-fields");
-const rangeFields = document.querySelector("#range-fields");
-const loadingCard = document.querySelector("#loading");
-const resultsWrapper = document.querySelector("#results");
-const statusLine = document.querySelector("#status-line");
+import { bootstrapSession } from "./shared/session-ui.js";
+import { getJournalLibrary, getSourceRegistry, getCurrentUser } from "./shared/storage.js";
+import { loadDailyDigest } from "./shared/crossref.js";
+
+const timeModeField = document.querySelector("#time-mode");
+const fromDateField = document.querySelector("#from-date");
+const toDateField = document.querySelector("#to-date");
+const fromDateWrapper = document.querySelector("#from-date-field");
+const toDateWrapper = document.querySelector("#to-date-field");
+const refreshButton = document.querySelector("#refresh-button");
+const digestStatus = document.querySelector("#digest-status");
+const paperGrid = document.querySelector("#paper-grid");
+const emptyState = document.querySelector("#empty-state");
+const loadingState = document.querySelector("#loading-state");
+const warningBanner = document.querySelector("#warning-banner");
+const paperCount = document.querySelector("#paper-count");
+const journalCount = document.querySelector("#journal-count");
+const topicCount = document.querySelector("#topic-count");
+
+let activeUser = null;
 
 function toggleTimeFields() {
-  const isRange = timePresetField.value === "range";
-  latestFields.classList.toggle("is-hidden", isRange);
-  rangeFields.classList.toggle("is-hidden", !isRange);
+  const showRange = timeModeField.value === "range";
+  fromDateWrapper.classList.toggle("is-hidden", !showRange);
+  toDateWrapper.classList.toggle("is-hidden", !showRange);
 }
 
-function createListItem(text) {
-  const li = document.createElement("li");
-  li.textContent = text;
-  return li;
-}
-
-function renderStats(stats, filters) {
-  const statsGrid = document.querySelector("#stats-grid");
-  const items = [
-    { label: "Papers", value: stats.total },
-    { label: "Journals", value: stats.journalsCovered },
-    { label: "Queries", value: stats.queriesExecuted },
-    { label: "Analysis", value: stats.analysisMode }
-  ];
-
-  statsGrid.innerHTML = items
-    .map(
-      (item) => `
-        <article class="stat-card">
-          <span>${item.label}</span>
-          <strong>${item.value}</strong>
-          <small>${filters.dateLabel}</small>
-        </article>
-      `
-    )
-    .join("");
-}
-
-function renderChips(targetSelector, items, formatter) {
-  const container = document.querySelector(targetSelector);
+function renderChips(target, values, format) {
+  const container = document.querySelector(target);
   container.innerHTML = "";
 
-  items.forEach((item) => {
+  if (!values || values.length === 0) {
+    container.innerHTML = `<span class="chip is-muted">None</span>`;
+    return;
+  }
+
+  values.forEach((value) => {
     const chip = document.createElement("span");
     chip.className = "chip";
-    chip.textContent = formatter(item);
+    chip.textContent = format ? format(value) : value;
     container.appendChild(chip);
   });
 }
 
-function renderHighlights(highlights) {
-  const container = document.querySelector("#highlights");
-  container.innerHTML = "";
+function renderPaperCards(papers) {
+  paperGrid.innerHTML = "";
 
-  highlights.forEach((item) => {
-    const article = document.createElement("article");
-    article.className = "highlight-card";
-    article.innerHTML = `
-      <div class="highlight-topline">
-        <span>TOP ${item.rank}</span>
-        <span>${item.publishedAt || "Date unavailable"}</span>
-      </div>
-      <h4>${item.title}</h4>
-      <p>${item.journal}</p>
-      <p class="muted">${item.rationale}</p>
-      ${item.url ? `<a href="${item.url}" target="_blank" rel="noreferrer">Open paper</a>` : ""}
-    `;
-    container.appendChild(article);
-  });
-}
+  if (papers.length === 0) {
+    emptyState.classList.remove("is-hidden");
+    return;
+  }
 
-function renderArticles(articles) {
-  const container = document.querySelector("#articles");
-  container.innerHTML = "";
+  emptyState.classList.add("is-hidden");
 
-  articles.forEach((article) => {
+  papers.forEach((paper) => {
     const card = document.createElement("article");
-    card.className = "article-card";
-    const authors = article.authors.length > 0 ? article.authors.join(", ") : "Author metadata unavailable";
-    const abstract = article.abstract || "Crossref did not return an abstract. Open the paper link for full details.";
+    card.className = "paper-card";
+    const authors = paper.authors.length > 0 ? paper.authors.join(", ") : "Author metadata unavailable";
+    const abstract = paper.abstract || "No abstract available from the selected public source.";
+    const matchedTopics = paper.matchedTopics.length > 0
+      ? paper.matchedTopics.map((topic) => `<span class="chip">${topic}</span>`).join("")
+      : `<span class="chip is-muted">Journal-only match</span>`;
+
     card.innerHTML = `
-      <div class="article-meta">
-        <span>${article.journal}</span>
-        <span>${article.publishedAt || "Date unavailable"}</span>
-        <span>Score ${article.score}</span>
+      <div class="paper-topline">
+        <span>${paper.journal}</span>
+        <span>${paper.publishedAt || "Date unavailable"}</span>
+        <span>${paper.sourceLabel}</span>
       </div>
-      <h4>${article.title}</h4>
+      <h4>${paper.title}</h4>
       <p class="muted">${authors}</p>
       <p>${abstract}</p>
-      <div class="chips inline-chips">
-        ${article.matchedKeywords.map((keyword) => `<span class="chip">${keyword}</span>`).join("")}
+      <div class="chips">${matchedTopics}</div>
+      <div class="paper-footer">
+        <span class="score-pill">Score ${paper.score.toFixed(1)}</span>
+        ${paper.url ? `<a href="${paper.url}" target="_blank" rel="noreferrer">Open paper</a>` : ""}
       </div>
-      ${article.url ? `<a href="${article.url}" target="_blank" rel="noreferrer">Open paper</a>` : ""}
     `;
-    container.appendChild(card);
+    paperGrid.appendChild(card);
   });
 }
 
-function renderSummary(summary) {
-  document.querySelector("#overview").textContent = summary.overview || "";
+function renderDigestHeader(user) {
+  const library = getJournalLibrary(user);
+  const subscribedJournals = library.filter((journal) => user.preferences.subscribedJournalIds.includes(journal.id));
+  paperCount.textContent = "0";
+  journalCount.textContent = String(subscribedJournals.length);
+  topicCount.textContent = String(user.preferences.topics.length);
+  renderChips("#journal-chips", subscribedJournals, (journal) => journal.title);
+  renderChips("#topic-chips", user.preferences.topics);
 
-  const signals = document.querySelector("#signals");
-  signals.innerHTML = "";
-  (summary.signals || []).forEach((signal) => signals.appendChild(createListItem(signal)));
-
-  const recommendations = document.querySelector("#recommendations");
-  recommendations.innerHTML = "";
-  (summary.recommendations || []).forEach((item) => recommendations.appendChild(createListItem(item)));
+  const sources = Object.values(getSourceRegistry()).filter((source) => source.status !== "off");
+  renderChips("#source-chips", sources, (source) => `${source.label} · ${source.status}`);
 }
 
-function renderResult(result) {
-  const warningText = result.warnings && result.warnings.length > 0 ? ` Warning: ${result.warnings[0]}` : "";
-  statusLine.textContent = `Completed: ${result.filters.dateLabel}. Returned ${result.stats.total} papers.${warningText}`;
-  renderStats(result.stats, result.filters);
-  renderSummary(result.summary);
-  renderChips("#themes", result.themes, (item) => `${item.label} · ${item.count}`);
-  renderChips("#journal-spread", result.journalSpread, (item) => `${item.journal} · ${item.count}`);
-  renderHighlights(result.highlights);
-  renderArticles(result.articles);
-  resultsWrapper.classList.remove("is-hidden");
+function getFilters() {
+  return {
+    timeMode: timeModeField.value,
+    fromDate: fromDateField.value,
+    toDate: toDateField.value
+  };
 }
 
-async function handleSubmit(event) {
-  event.preventDefault();
-  loadingCard.classList.remove("is-hidden");
-  resultsWrapper.classList.add("is-hidden");
-  statusLine.textContent = "Request sent. Searching the literature...";
+async function refreshDigest() {
+  if (!activeUser) {
+    return;
+  }
 
-  const formData = new FormData(form);
-  const payload = Object.fromEntries(formData.entries());
+  loadingState.classList.remove("is-hidden");
+  warningBanner.classList.add("is-hidden");
+  paperGrid.innerHTML = "";
+  emptyState.classList.add("is-hidden");
+  digestStatus.textContent = "Searching your sources...";
 
   try {
-    const response = await fetch("/api/search", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
+    const result = await loadDailyDigest({
+      user: activeUser,
+      filters: getFilters()
     });
 
-    const result = await response.json();
+    paperCount.textContent = String(result.papers.length);
+    digestStatus.textContent = `Updated ${result.updatedAtLabel}. ${result.papers.length} papers across ${result.journalsUsed} journals.`;
+    renderPaperCards(result.papers);
 
-    if (!response.ok) {
-      throw new Error(result.error || "Search failed.");
+    if (result.warnings.length > 0) {
+      warningBanner.textContent = result.warnings[0];
+      warningBanner.classList.remove("is-hidden");
     }
-
-    renderResult(result);
   } catch (error) {
-    statusLine.textContent = error.message;
+    warningBanner.textContent = error.message;
+    warningBanner.classList.remove("is-hidden");
+    digestStatus.textContent = "Digest refresh failed.";
+    paperGrid.innerHTML = "";
+    emptyState.classList.remove("is-hidden");
   } finally {
-    loadingCard.classList.add("is-hidden");
+    loadingState.classList.add("is-hidden");
   }
 }
 
-timePresetField.addEventListener("change", toggleTimeFields);
-form.addEventListener("submit", handleSubmit);
+bootstrapSession({
+  onAuthenticated(user) {
+    activeUser = getCurrentUser() || user;
+    renderDigestHeader(activeUser);
+    refreshDigest();
+  },
+  onSignedOut() {
+    activeUser = null;
+    paperGrid.innerHTML = "";
+    paperCount.textContent = "0";
+    digestStatus.textContent = "Sign in to load your digest.";
+    emptyState.classList.remove("is-hidden");
+  }
+});
+
+timeModeField.addEventListener("change", toggleTimeFields);
+refreshButton.addEventListener("click", refreshDigest);
 toggleTimeFields();

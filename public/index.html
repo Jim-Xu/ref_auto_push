@@ -3,163 +3,165 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Literature Scout</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <title>Literature Discovery</title>
+    <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body>
-    <div class="page-shell">
-      <header class="hero">
-        <div class="hero-copy">
-          <p class="eyebrow">Research Radar</p>
-          <h1>Literature Discovery and Analysis Dashboard</h1>
-          <p class="hero-text">
-            Define journals, keywords, and a time window. The system searches the literature, ranks the results, and builds an AI-ready research summary.
-          </p>
+  <body data-page="digest">
+    <div class="site-shell">
+      <aside class="side-rail">
+        <div>
+          <p class="eyebrow">Research Desk</p>
+          <h1 class="brand-title">Literature Discovery</h1>
         </div>
-        <div class="hero-card">
-          <div class="hero-stat">
-            <span>Source</span>
-            <strong>Crossref</strong>
-          </div>
-          <div class="hero-stat">
-            <span>Analysis Mode</span>
-            <strong>Local Analysis / OpenAI</strong>
-          </div>
-          <div class="hero-stat">
-            <span>Use Cases</span>
-            <strong>Weekly digests, topic tracking, trend scans</strong>
-          </div>
-        </div>
-      </header>
 
-      <main class="layout">
-        <section class="panel config-panel">
-          <div class="panel-heading">
-            <h2>Search Setup</h2>
-            <p>Define the journals, keywords, and date filters you care about.</p>
+        <nav class="nav-links">
+          <a class="nav-link is-active" href="./index.html">Daily Digest</a>
+          <a class="nav-link" href="./journals.html">Journal Subscriptions</a>
+          <a class="nav-link" href="./topics.html">Keyword Subscriptions</a>
+        </nav>
+
+        <section class="account-card">
+          <p class="section-label">Account</p>
+          <strong id="account-name">Not signed in</strong>
+          <span id="account-email" class="muted"></span>
+          <button id="signout-button" class="ghost-button" type="button">Sign Out</button>
+        </section>
+      </aside>
+
+      <main class="page-panel">
+        <header class="page-header">
+          <div>
+            <p class="section-label">Daily Digest</p>
+            <h2>Literature Discovery</h2>
+            <p class="page-copy">Refresh your subscribed journals and optional keywords to generate today's reading queue.</p>
           </div>
 
-          <form id="search-form" class="config-form">
-            <label>
-              <span>Journals</span>
-              <textarea id="journals" name="journals" rows="6">Atmospheric Chemistry and Physics
-Nature Geoscience
-Nature Communications
-Science Advances
-Atmospheric Environment
-Aerosol Science and Technology
-Journal of Aerosol Science
-Geoscientific Model Development
-Journal of Geophysical Research: Atmospheres</textarea>
-              <small class="field-hint">Enter one journal per line, or separate them with commas. Use official journal titles when possible.</small>
+          <div class="toolbar">
+            <label class="inline-field">
+              <span>Time Mode</span>
+              <select id="time-mode">
+                <option value="today" selected>Today</option>
+                <option value="range">Range</option>
+              </select>
             </label>
 
-            <label>
-              <span>Keywords</span>
-              <textarea id="keywords" name="keywords" rows="6">aerosol modeling
-aerosol microphysics
-aerosol chemistry
-aerosol-cloud interactions
-aerosol radiative effects
-black carbon
-</textarea>
-              <small class="field-hint">Use English search terms, synonyms, and abbreviations for better recall.</small>
+            <label class="inline-field is-hidden" id="from-date-field">
+              <span>From</span>
+              <input id="from-date" type="date" />
             </label>
 
-            <div class="grid two-columns">
-              <label>
-                <span>Time Mode</span>
-                <select id="timePreset" name="timePreset">
-                  <option value="latest" selected>Latest Papers</option>
-                  <option value="range">Custom Date Range</option>
-                </select>
-              </label>
+            <label class="inline-field is-hidden" id="to-date-field">
+              <span>To</span>
+              <input id="to-date" type="date" />
+            </label>
 
-              <label>
-                <span>Result Limit</span>
-                <input id="maxResults" name="maxResults" type="number" min="5" max="50" value="20" />
-              </label>
-            </div>
+            <button id="refresh-button" class="primary-button" type="button">Refresh Digest</button>
+          </div>
+        </header>
 
-            <div id="latest-fields" class="grid one-column">
-              <label>
-                <span>Last N Days</span>
-                <input id="latestDays" name="latestDays" type="number" min="1" max="365" value="30" />
-              </label>
-            </div>
-
-            <div id="range-fields" class="grid two-columns is-hidden">
-              <label>
-                <span>Start Date</span>
-                <input id="fromDate" name="fromDate" type="date" />
-              </label>
-
-              <label>
-                <span>End Date</span>
-                <input id="toDate" name="toDate" type="date" />
-              </label>
-            </div>
-
-            <button class="primary-button" type="submit">Run Scan</button>
-          </form>
+        <section class="summary-strip">
+          <article class="mini-card">
+            <span>Papers</span>
+            <strong id="paper-count">0</strong>
+          </article>
+          <article class="mini-card">
+            <span>Subscribed Journals</span>
+            <strong id="journal-count">0</strong>
+          </article>
+          <article class="mini-card">
+            <span>Optional Keywords</span>
+            <strong id="topic-count">0</strong>
+          </article>
         </section>
 
-        <section class="panel results-panel">
-          <div class="panel-heading">
-            <h2>Results</h2>
-            <p id="status-line">Fill in the filters and run a scan.</p>
+        <section class="panel-block">
+          <div class="panel-topline">
+            <div>
+              <p class="section-label">Subscriptions</p>
+              <h3>Active Filters</h3>
+            </div>
+            <p id="digest-status" class="muted">Sign in to load your digest.</p>
           </div>
 
-          <div id="loading" class="loading-card is-hidden">
+          <div class="chip-groups">
+            <div>
+              <span class="group-label">Journals</span>
+              <div id="journal-chips" class="chips"></div>
+            </div>
+            <div>
+              <span class="group-label">Keywords</span>
+              <div id="topic-chips" class="chips"></div>
+            </div>
+            <div>
+              <span class="group-label">Sources</span>
+              <div id="source-chips" class="chips"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel-block">
+          <div class="panel-topline">
+            <div>
+              <p class="section-label">Results</p>
+              <h3>Today's Queue</h3>
+            </div>
+          </div>
+
+          <div id="warning-banner" class="warning-banner is-hidden"></div>
+          <div id="empty-state" class="empty-state">No papers loaded yet. Refresh the digest to search your subscriptions.</div>
+          <div id="loading-state" class="loading-state is-hidden">
             <div class="spinner"></div>
-            <p>Searching papers and generating the analysis summary...</p>
+            <p>Searching public sources for your subscribed journals...</p>
           </div>
-
-          <div id="results" class="results is-hidden">
-            <section class="stats-grid" id="stats-grid"></section>
-
-            <section class="summary-grid">
-              <article class="summary-card">
-                <h3>Overview</h3>
-                <p id="overview"></p>
-              </article>
-
-              <article class="summary-card">
-                <h3>Key Signals</h3>
-                <ul id="signals"></ul>
-              </article>
-
-              <article class="summary-card">
-                <h3>Recommendations</h3>
-                <ul id="recommendations"></ul>
-              </article>
-            </section>
-
-            <section class="chips-section">
-              <div>
-                <h3>Topic Clusters</h3>
-                <div id="themes" class="chips"></div>
-              </div>
-              <div>
-                <h3>Journal Spread</h3>
-                <div id="journal-spread" class="chips"></div>
-              </div>
-            </section>
-
-            <section>
-              <h3>Top Papers</h3>
-              <div id="highlights" class="highlight-list"></div>
-            </section>
-
-            <section>
-              <h3>Paper List</h3>
-              <div id="articles" class="article-list"></div>
-            </section>
-          </div>
+          <div id="paper-grid" class="paper-grid"></div>
         </section>
       </main>
     </div>
 
-    <script src="/app.js"></script>
+    <div id="auth-modal" class="auth-modal is-hidden">
+      <div class="auth-dialog">
+        <div>
+          <p class="section-label">Browser-local sign-in</p>
+          <h2>Open your workspace</h2>
+          <p class="muted">This GitHub Pages version stores accounts and subscriptions in this browser so each user can keep a separate setup.</p>
+        </div>
+
+        <div class="auth-grid">
+          <form id="signin-form" class="auth-form">
+            <h3>Sign In</h3>
+            <label>
+              <span>Email</span>
+              <input id="signin-email" type="email" required />
+            </label>
+            <label>
+              <span>Password</span>
+              <input id="signin-password" type="password" required />
+            </label>
+            <button class="primary-button" type="submit">Sign In</button>
+          </form>
+
+          <form id="signup-form" class="auth-form">
+            <h3>Create Account</h3>
+            <label>
+              <span>Name</span>
+              <input id="signup-name" type="text" required />
+            </label>
+            <label>
+              <span>Email</span>
+              <input id="signup-email" type="email" required />
+            </label>
+            <label>
+              <span>Password</span>
+              <input id="signup-password" type="password" minlength="6" required />
+            </label>
+            <button class="secondary-button" type="submit">Create Account</button>
+          </form>
+        </div>
+
+        <p id="auth-message" class="auth-message"></p>
+      </div>
+    </div>
+
+    <script type="module" src="./app.js"></script>
   </body>
 </html>

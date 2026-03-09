@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Keyword Subscriptions</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body data-page="topics">
+    <div class="site-shell">
+      <aside class="side-rail">
+        <div>
+          <p class="eyebrow">Research Desk</p>
+          <h1 class="brand-title">Literature Discovery</h1>
+        </div>
+
+        <nav class="nav-links">
+          <a class="nav-link" href="./index.html">Daily Digest</a>
+          <a class="nav-link" href="./journals.html">Journal Subscriptions</a>
+          <a class="nav-link is-active" href="./topics.html">Keyword Subscriptions</a>
+        </nav>
+
+        <section class="account-card">
+          <p class="section-label">Account</p>
+          <strong id="account-name">Not signed in</strong>
+          <span id="account-email" class="muted"></span>
+          <button id="signout-button" class="ghost-button" type="button">Sign Out</button>
+        </section>
+      </aside>
+
+      <main class="page-panel">
+        <header class="page-header">
+          <div>
+            <p class="section-label">Optional Filters</p>
+            <h2>Keyword Subscriptions</h2>
+            <p class="page-copy">Keywords are optional. Keep this list empty for journal-only daily digests, or add focused topics to narrow the feed.</p>
+          </div>
+
+          <form id="topic-form" class="search-toolbar">
+            <input id="topic-input" type="text" placeholder="Add a keyword or model term..." />
+            <button class="primary-button" type="submit">Add Keyword</button>
+          </form>
+        </header>
+
+        <section class="panel-block">
+          <div class="panel-topline">
+            <div>
+              <p class="section-label">Current Keywords</p>
+              <h3>Your Optional Topic Filters</h3>
+            </div>
+          </div>
+
+          <div id="topic-list" class="topic-stack"></div>
+        </section>
+
+        <section class="panel-block">
+          <div class="panel-topline">
+            <div>
+              <p class="section-label">Suggestions</p>
+              <h3>Suggested Aerosol Modeling Topics</h3>
+            </div>
+          </div>
+
+          <div id="suggested-topics" class="chips"></div>
+        </section>
+      </main>
+    </div>
+
+    <div id="auth-modal" class="auth-modal is-hidden">
+      <div class="auth-dialog">
+        <div>
+          <p class="section-label">Browser-local sign-in</p>
+          <h2>Open your workspace</h2>
+          <p class="muted">This GitHub Pages version stores accounts and subscriptions in this browser so each user can keep a separate setup.</p>
+        </div>
+
+        <div class="auth-grid">
+          <form id="signin-form" class="auth-form">
+            <h3>Sign In</h3>
+            <label>
+              <span>Email</span>
+              <input id="signin-email" type="email" required />
+            </label>
+            <label>
+              <span>Password</span>
+              <input id="signin-password" type="password" required />
+            </label>
+            <button class="primary-button" type="submit">Sign In</button>
+          </form>
+
+          <form id="signup-form" class="auth-form">
+            <h3>Create Account</h3>
+            <label>
+              <span>Name</span>
+              <input id="signup-name" type="text" required />
+            </label>
+            <label>
+              <span>Email</span>
+              <input id="signup-email" type="email" required />
+            </label>
+            <label>
+              <span>Password</span>
+              <input id="signup-password" type="password" minlength="6" required />
+            </label>
+            <button class="secondary-button" type="submit">Create Account</button>
+          </form>
+        </div>
+
+        <p id="auth-message" class="auth-message"></p>
+      </div>
+    </div>
+
+    <script type="module" src="./topics.js"></script>
+  </body>
+</html>
