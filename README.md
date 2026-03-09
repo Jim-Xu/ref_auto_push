@@ -2,6 +2,15 @@
 
 A GitHub Pages-friendly literature dashboard for daily journal digests.
 
+## Live Site
+
+Primary usage is now through GitHub Pages:
+
+- Production site: `https://jim-xu.github.io/ref_auto_push/`
+- Daily workflow: open the site, sign in locally in your browser, then refresh the digest
+
+`npm start` is no longer the main way to use the project. It is only for local preview during development.
+
 ## What Changed
 
 - The home page is now a focused `Daily Digest` view with a refresh button and time mode.
@@ -12,13 +21,13 @@ A GitHub Pages-friendly literature dashboard for daily journal digests.
 - A browser-local sign-in layer separates subscriptions for different users on the same published site.
 - GitHub Pages deployment is configured through [deploy-pages.yml](.github/workflows/deploy-pages.yml).
 
-## How It Works
+## Local Preview
 
 This app is now a static multi-page site under [public](public). That means:
 
 - GitHub Pages can publish it directly.
 - The browser calls public APIs directly.
-- Local preview still works with:
+- Local preview is optional and still works with:
 
 ```bash
 npm start
@@ -70,6 +79,10 @@ The workflow is already added. In the GitHub repository settings:
 3. Set `Source` to `GitHub Actions`
 
 After that, every push to `main` will deploy the contents of [public](public).
+
+If you keep the default project-pages URL, the published address is:
+
+- `https://jim-xu.github.io/ref_auto_push/`
 
 ## Current Limitations
 
