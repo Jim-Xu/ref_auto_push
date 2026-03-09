@@ -1,0 +1,10 @@
+{
+  "name": "ref-auto-push",
+  "version": "0.1.0",
+  "description": "Literature auto-discovery MVP with configurable journals, keywords, date filters, and AI-ready analysis.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "license": "MIT"
+}
