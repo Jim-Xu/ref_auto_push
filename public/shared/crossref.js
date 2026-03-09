@@ -3,8 +3,15 @@ import { getJournalLibrary } from "./storage.js";
 
 const CROSSREF_BASE_URL = "https://api.crossref.org";
 const PUBMED_BASE_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils";
-const ARXIV_BASE_URL = "https://export.arxiv.org/api/query";
 const MAX_QUERY_COUNT = 12;
+const KEYWORD_LIMIT = 10;
+const STOPWORDS = new Set([
+  "about", "across", "after", "among", "analysis", "approach", "based", "between", "both", "data",
+  "during", "effect", "effects", "from", "have", "into", "journal", "latest", "model", "models",
+  "paper", "papers", "recent", "research", "results", "review", "study", "their", "these", "using",
+  "with", "without", "within", "that", "this", "were", "which", "into", "over", "under", "than",
+  "aerosol", "atmospheric", "using", "simulation"
+]);
 
 function normalizeText(value) {
   return String(value || "")
@@ -61,7 +68,7 @@ function extractPublishedDate(item) {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
-function mapCrossrefPaper(item, journalTitle, matchedTopics) {
+function mapCrossrefPaper(item, journalTitle) {
   const authors = Array.isArray(item.author)
     ? item.author.map((author) => [author.given, author.family].filter(Boolean).join(" ").trim()).filter(Boolean)
     : [];
@@ -75,26 +82,46 @@ function mapCrossrefPaper(item, journalTitle, matchedTopics) {
     authors,
     publishedAt: extractPublishedDate(item),
     url: item.URL || "",
-    matchedTopics,
+    detectedKeywords: [],
     sourceId: "crossref",
     sourceLabel: SOURCE_REGISTRY.crossref.label,
     score: 0
   };
 }
 
-function rankPaper(paper, topics, toDate) {
-  const blob = normalizeText(`${paper.title} ${paper.abstract} ${paper.journal}`);
-  const matchedTopics = topics.filter((topic) => blob.includes(normalizeText(topic)));
+function mapPubMedPaper(summary) {
+  const articleIds = Array.isArray(summary.articleids) ? summary.articleids : [];
+  const doiEntry = articleIds.find((entry) => entry.idtype === "doi");
+  const authors = Array.isArray(summary.authors) ? summary.authors.map((author) => author.name).filter(Boolean) : [];
+
+  return {
+    id: `pubmed-${summary.uid}`,
+    doi: doiEntry?.value || "",
+    title: summary.title || "Untitled",
+    journal: summary.fulljournalname || summary.source || "PubMed",
+    abstract: "",
+    authors,
+    publishedAt: summary.pubdate || "",
+    url: `https://pubmed.ncbi.nlm.nih.gov/${summary.uid}/`,
+    detectedKeywords: [],
+    sourceId: "pubmed",
+    sourceLabel: SOURCE_REGISTRY.pubmed.label,
+    score: 0
+  };
+}
+
+function rankPaper(paper, toDate) {
   const publicationDate = paper.publishedAt ? new Date(paper.publishedAt) : null;
   const latestDate = new Date(toDate);
   const recencyBoost = publicationDate
     ? Math.max(0, 14 - Math.floor((latestDate - publicationDate) / 86400000)) / 10
     : 0;
+  const abstractBoost = paper.abstract ? 0.6 : 0;
+  const keywordBoost = (paper.detectedKeywords?.length || 0) * 0.8;
 
   return {
     ...paper,
-    matchedTopics,
-    score: matchedTopics.length * 5 + 2 + recencyBoost
+    score: 2 + recencyBoost + abstractBoost + keywordBoost
   };
 }
 
@@ -124,45 +151,25 @@ async function fetchJson(url) {
   }
 
   if (!response.ok) {
-    throw new Error(`Crossref request failed: ${response.status}`);
+    throw new Error(`Request failed: ${response.status}`);
   }
 
   return response.json();
 }
 
-async function fetchText(url) {
-  let response;
-
-  try {
-    response = await fetch(url.toString());
-  } catch (error) {
-    throw new Error(`Network request failed: ${error.message}`);
-  }
-
-  if (!response.ok) {
-    throw new Error(`Request failed: ${response.status}`);
-  }
-
-  return response.text();
-}
-
-function buildJournalQueryUrl(journal, topic, dateWindow) {
+function buildJournalQueryUrl(journal, dateWindow) {
   const url = journal.issn
     ? new URL(`${CROSSREF_BASE_URL}/journals/${encodeURIComponent(journal.issn)}/works`)
     : new URL(`${CROSSREF_BASE_URL}/works`);
 
   url.searchParams.set("filter", `from-pub-date:${dateWindow.fromDate},until-pub-date:${dateWindow.toDate},type:journal-article`);
-  url.searchParams.set("rows", topic ? "6" : "8");
+  url.searchParams.set("rows", "8");
   url.searchParams.set("sort", "published");
   url.searchParams.set("order", "desc");
   url.searchParams.set("select", "DOI,title,URL,abstract,published-print,published-online,issued,container-title,author");
 
   if (!journal.issn) {
     url.searchParams.set("query.container-title", journal.title);
-  }
-
-  if (topic) {
-    url.searchParams.set("query.bibliographic", topic);
   }
 
   return url;
@@ -188,24 +195,8 @@ export async function searchCrossrefJournals(term) {
   }));
 }
 
-function buildCrossrefPapers({ subscribedJournals, topics, dateWindow }) {
-  const queries = [];
-  if (topics.length === 0) {
-    subscribedJournals.forEach((journal) => queries.push({ journal, topic: "" }));
-  } else {
-    subscribedJournals.forEach((journal) => {
-      topics.forEach((topic) => queries.push({ journal, topic }));
-    });
-  }
-  return queries.slice(0, MAX_QUERY_COUNT);
-}
-
-function buildPubMedTerm(journal, topics, dateWindow) {
-  const topicTerm = topics.length > 0
-    ? ` AND (${topics.map((topic) => `"${topic}"`).join(" OR ")})`
-    : "";
-
-  return `("${journal.title}"[jour])${topicTerm} AND ("${dateWindow.fromDate}"[Date - Publication] : "${dateWindow.toDate}"[Date - Publication])`;
+function buildPubMedTerm(journal, dateWindow) {
+  return `("${journal.title}"[jour]) AND ("${dateWindow.fromDate}"[Date - Publication] : "${dateWindow.toDate}"[Date - Publication])`;
 }
 
 function buildPubMedSearchUrl(term) {
@@ -226,34 +217,13 @@ function buildPubMedSummaryUrl(ids) {
   return url;
 }
 
-function mapPubMedPaper(summary, topics) {
-  const articleIds = Array.isArray(summary.articleids) ? summary.articleids : [];
-  const doiEntry = articleIds.find((entry) => entry.idtype === "doi");
-  const authors = Array.isArray(summary.authors) ? summary.authors.map((author) => author.name).filter(Boolean) : [];
-
-  return {
-    id: `pubmed-${summary.uid}`,
-    doi: doiEntry?.value || "",
-    title: summary.title || "Untitled",
-    journal: summary.fulljournalname || summary.source || "PubMed",
-    abstract: "",
-    authors,
-    publishedAt: summary.pubdate || "",
-    url: `https://pubmed.ncbi.nlm.nih.gov/${summary.uid}/`,
-    matchedTopics: [],
-    sourceId: "pubmed",
-    sourceLabel: SOURCE_REGISTRY.pubmed.label,
-    score: 0
-  };
-}
-
-async function loadPubMedPapers({ subscribedJournals, topics, dateWindow }) {
+async function loadPubMedPapers({ subscribedJournals, dateWindow }) {
   const papers = [];
   const warnings = [];
 
   for (const journal of subscribedJournals.slice(0, 6)) {
     try {
-      const searchPayload = await fetchJson(buildPubMedSearchUrl(buildPubMedTerm(journal, topics, dateWindow)));
+      const searchPayload = await fetchJson(buildPubMedSearchUrl(buildPubMedTerm(journal, dateWindow)));
       const ids = Array.isArray(searchPayload.esearchresult?.idlist) ? searchPayload.esearchresult.idlist : [];
 
       if (ids.length === 0) {
@@ -264,7 +234,7 @@ async function loadPubMedPapers({ subscribedJournals, topics, dateWindow }) {
       const summaries = ids
         .map((id) => summaryPayload.result?.[id])
         .filter(Boolean)
-        .map((summary) => mapPubMedPaper(summary, topics));
+        .map((summary) => mapPubMedPaper(summary));
 
       papers.push(...summaries);
     } catch (error) {
@@ -275,65 +245,75 @@ async function loadPubMedPapers({ subscribedJournals, topics, dateWindow }) {
   return { papers, warnings };
 }
 
-function buildArxivUrl(topic) {
-  const url = new URL(ARXIV_BASE_URL);
-  url.searchParams.set("search_query", `all:"${topic}"`);
-  url.searchParams.set("start", "0");
-  url.searchParams.set("max_results", "6");
-  url.searchParams.set("sortBy", "submittedDate");
-  url.searchParams.set("sortOrder", "descending");
-  return url;
-}
+function collectCandidateTerms(text) {
+  const tokens = normalizeText(text)
+    .split(/\s+/)
+    .filter((token) => token.length >= 4 && !STOPWORDS.has(token));
+  const candidates = [];
 
-function getTextFromTag(node, tagName) {
-  return node.getElementsByTagName(tagName)?.[0]?.textContent?.trim() || "";
-}
+  for (let index = 0; index < tokens.length; index += 1) {
+    const current = tokens[index];
+    const next = tokens[index + 1];
 
-function mapArxivPaper(entry, topic) {
-  const authors = Array.from(entry.getElementsByTagName("author"))
-    .map((authorNode) => authorNode.getElementsByTagName("name")?.[0]?.textContent?.trim() || "")
-    .filter(Boolean);
-  const links = Array.from(entry.getElementsByTagName("link"));
-  const alternateLink = links.find((link) => link.getAttribute("rel") === "alternate") || links[0];
+    if (current) {
+      candidates.push(current);
+    }
 
-  return {
-    id: getTextFromTag(entry, "id") || `arxiv-${crypto.randomUUID()}`,
-    doi: "",
-    title: getTextFromTag(entry, "title") || "Untitled",
-    journal: "arXiv",
-    abstract: getTextFromTag(entry, "summary"),
-    authors,
-    publishedAt: getTextFromTag(entry, "published"),
-    url: alternateLink?.getAttribute("href") || "",
-    matchedTopics: [topic],
-    sourceId: "arxiv",
-    sourceLabel: SOURCE_REGISTRY.arxiv.label,
-    score: 0
-  };
-}
-
-async function loadArxivPapers(topics) {
-  const papers = [];
-  const warnings = [];
-
-  for (const topic of topics.slice(0, 4)) {
-    try {
-      const xml = await fetchText(buildArxivUrl(topic));
-      const parsed = new DOMParser().parseFromString(xml, "application/xml");
-      const entries = Array.from(parsed.getElementsByTagName("entry"));
-      entries.forEach((entry) => papers.push(mapArxivPaper(entry, topic)));
-    } catch (error) {
-      warnings.push(`arXiv · ${topic}: ${error.message}`);
+    if (current && next && next.length >= 4 && !STOPWORDS.has(next)) {
+      candidates.push(`${current} ${next}`);
     }
   }
 
-  return { papers, warnings };
+  return candidates;
+}
+
+function toKeywordLabel(term) {
+  return term
+    .split(" ")
+    .map((part) => (part.length <= 3 ? part.toUpperCase() : part[0].toUpperCase() + part.slice(1)))
+    .join(" ");
+}
+
+function deriveKeywordSummary(papers) {
+  const frequencyMap = new Map();
+
+  papers.forEach((paper) => {
+    const blob = `${paper.title} ${paper.abstract}`;
+    collectCandidateTerms(blob).forEach((term) => {
+      frequencyMap.set(term, (frequencyMap.get(term) || 0) + 1);
+    });
+  });
+
+  return Array.from(frequencyMap.entries())
+    .sort((left, right) => {
+      if (right[1] !== left[1]) {
+        return right[1] - left[1];
+      }
+      return left[0].localeCompare(right[0]);
+    })
+    .slice(0, KEYWORD_LIMIT)
+    .map(([term, count]) => ({
+      key: term,
+      label: toKeywordLabel(term),
+      count
+    }));
+}
+
+function attachDetectedKeywords(papers, keywordSummary) {
+  return papers.map((paper) => {
+    const blob = normalizeText(`${paper.title} ${paper.abstract}`);
+    return {
+      ...paper,
+      detectedKeywords: keywordSummary
+        .filter((keyword) => blob.includes(keyword.key))
+        .map((keyword) => keyword.label)
+    };
+  });
 }
 
 export async function loadDailyDigest({ user, filters }) {
   const library = getJournalLibrary(user);
   const subscribedJournals = library.filter((journal) => user.preferences.subscribedJournalIds.includes(journal.id));
-  const topics = user.preferences.topics || [];
   const enabledSources = user.preferences.sources || {};
   const dateWindow = getDateWindow(filters);
   const warnings = [];
@@ -344,47 +324,45 @@ export async function loadDailyDigest({ user, filters }) {
   }
 
   if (!Object.values(enabledSources).some(Boolean)) {
-    throw new Error("Enable at least one data source on the Keyword Subscriptions page.");
+    throw new Error("Enable at least one data source on the Source Settings page.");
   }
 
   if (enabledSources.crossref) {
-    const queries = buildCrossrefPapers({ subscribedJournals, topics, dateWindow });
-
-    for (const query of queries) {
+    for (const journal of subscribedJournals.slice(0, MAX_QUERY_COUNT)) {
       try {
-        const payload = await fetchJson(buildJournalQueryUrl(query.journal, query.topic, dateWindow));
+        const payload = await fetchJson(buildJournalQueryUrl(journal, dateWindow));
         const items = Array.isArray(payload.message?.items) ? payload.message.items : [];
-
         items.forEach((item) => {
-          papers.push(mapCrossrefPaper(item, query.journal.title, query.topic ? [query.topic] : []));
+          papers.push(mapCrossrefPaper(item, journal.title));
         });
       } catch (error) {
-        warnings.push(`Crossref · ${query.journal.title}: ${error.message}`);
+        warnings.push(`Crossref · ${journal.title}: ${error.message}`);
       }
     }
   }
 
   if (enabledSources.pubmed) {
-    const pubMedResult = await loadPubMedPapers({ subscribedJournals, topics, dateWindow });
+    const pubMedResult = await loadPubMedPapers({ subscribedJournals, dateWindow });
     papers.push(...pubMedResult.papers);
     warnings.push(...pubMedResult.warnings);
   }
 
-  if (enabledSources.arxiv && topics.length > 0) {
-    const arxivResult = await loadArxivPapers(topics);
-    papers.push(...arxivResult.papers);
-    warnings.push(...arxivResult.warnings);
+  if (enabledSources.arxiv) {
+    warnings.push("arXiv is currently skipped in journal-first mode because it is not journal-scoped.");
   }
 
-  const rankedPapers = dedupePapers(papers)
-    .map((paper) => rankPaper(paper, topics, dateWindow.toDate))
-    .filter((paper) => topics.length === 0 || paper.matchedTopics.length > 0)
+  const dedupedPapers = dedupePapers(papers);
+  const keywordSummary = deriveKeywordSummary(dedupedPapers);
+  const enrichedPapers = attachDetectedKeywords(dedupedPapers, keywordSummary);
+  const rankedPapers = enrichedPapers
+    .map((paper) => rankPaper(paper, dateWindow.toDate))
     .sort((left, right) => right.score - left.score)
     .slice(0, 24);
 
   return {
     updatedAtLabel: `${new Date().toLocaleDateString()} · ${dateWindow.label}`,
     papers: rankedPapers,
+    keywordSummary,
     warnings,
     journalsUsed: subscribedJournals.length
   };

@@ -17,7 +17,7 @@
         <nav class="nav-links">
           <a class="nav-link is-active" href="./index.html">Daily Digest</a>
           <a class="nav-link" href="./journals.html">Journal Subscriptions</a>
-          <a class="nav-link" href="./topics.html">Keyword Subscriptions</a>
+          <a class="nav-link" href="./topics.html">Source Settings</a>
         </nav>
 
         <section class="account-card">
@@ -33,7 +33,7 @@
           <div>
             <p class="section-label">Daily Digest</p>
             <h2>Literature Discovery</h2>
-            <p class="page-copy">Refresh your subscribed journals and optional keywords to generate today's reading queue.</p>
+            <p class="page-copy">Refresh your subscribed journals to generate a journal-first daily digest, then click journals or detected keywords to filter the returned papers.</p>
           </div>
 
           <div class="toolbar">
@@ -69,7 +69,7 @@
             <strong id="journal-count">0</strong>
           </article>
           <article class="mini-card">
-            <span>Optional Keywords</span>
+            <span>Detected Keywords</span>
             <strong id="topic-count">0</strong>
           </article>
         </section>
@@ -77,8 +77,8 @@
         <section class="panel-block">
           <div class="panel-topline">
             <div>
-              <p class="section-label">Subscriptions</p>
-              <h3>Active Filters</h3>
+              <p class="section-label">Filters</p>
+              <h3>Journal and Keyword Filters</h3>
             </div>
             <p id="digest-status" class="muted">Sign in to load your digest.</p>
           </div>
@@ -91,10 +91,6 @@
             <div>
               <span class="group-label">Keywords</span>
               <div id="topic-chips" class="chips"></div>
-            </div>
-            <div>
-              <span class="group-label">Sources</span>
-              <div id="source-chips" class="chips"></div>
             </div>
           </div>
         </section>

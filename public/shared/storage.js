@@ -1,4 +1,4 @@
-import { DEFAULT_JOURNAL_IDS, SEEDED_JOURNALS, SOURCE_REGISTRY, SUGGESTED_TOPICS } from "./catalog.js";
+import { DEFAULT_JOURNAL_IDS, SEEDED_JOURNALS, SOURCE_REGISTRY } from "./catalog.js";
 
 const STORAGE_KEY = "literature-discovery/v2";
 
@@ -6,7 +6,7 @@ function buildDefaultPreferences() {
   return {
     subscribedJournalIds: [...DEFAULT_JOURNAL_IDS],
     customJournals: [],
-    topics: SUGGESTED_TOPICS.slice(0, 4),
+    topics: [],
     sources: {
       crossref: true,
       pubmed: true,

@@ -15,10 +15,11 @@ Primary usage is now through GitHub Pages:
 
 - The home page is now a focused `Daily Digest` view with a refresh button and time mode.
 - Journal subscriptions moved to a dedicated `Journal Subscriptions` page.
-- Keywords moved to an optional `Keyword Subscriptions` page.
+- The daily digest is now journal-first and derives keyword filters automatically from returned papers.
 - The app now ships with seeded atmospheric science journals.
 - Journal search supports title or ISSN lookup through Crossref.
 - A browser-local sign-in layer separates subscriptions for different users on the same published site.
+- Source toggles moved to a dedicated `Source Settings` page.
 - GitHub Pages deployment is configured through [deploy-pages.yml](.github/workflows/deploy-pages.yml).
 
 ## Local Preview
@@ -39,7 +40,7 @@ Then open [http://127.0.0.1:3000](http://127.0.0.1:3000).
 
 - [index.html](public/index.html): daily digest
 - [journals.html](public/journals.html): journal subscription management
-- [topics.html](public/topics.html): optional keyword subscriptions
+- [topics.html](public/topics.html): source settings
 
 ## Data Sources
 

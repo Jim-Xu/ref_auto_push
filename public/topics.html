@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Keyword Subscriptions</title>
+    <title>Source Settings</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body data-page="topics">
@@ -17,7 +17,7 @@
         <nav class="nav-links">
           <a class="nav-link" href="./index.html">Daily Digest</a>
           <a class="nav-link" href="./journals.html">Journal Subscriptions</a>
-          <a class="nav-link is-active" href="./topics.html">Keyword Subscriptions</a>
+          <a class="nav-link is-active" href="./topics.html">Source Settings</a>
         </nav>
 
         <section class="account-card">
@@ -31,27 +31,11 @@
       <main class="page-panel">
         <header class="page-header">
           <div>
-            <p class="section-label">Optional Filters</p>
-            <h2>Keyword Subscriptions</h2>
-            <p class="page-copy">Keywords are optional. Keep this list empty for journal-only daily digests, or add focused topics to narrow the feed.</p>
+            <p class="section-label">Source Controls</p>
+            <h2>Source Settings</h2>
+            <p class="page-copy">Manage which public literature sources are enabled for the daily digest. The digest searches subscribed journals first and derives keyword filters automatically from the returned papers.</p>
           </div>
-
-          <form id="topic-form" class="search-toolbar">
-            <input id="topic-input" type="text" placeholder="Add a keyword or model term..." />
-            <button class="primary-button" type="submit">Add Keyword</button>
-          </form>
         </header>
-
-        <section class="panel-block">
-          <div class="panel-topline">
-            <div>
-              <p class="section-label">Current Keywords</p>
-              <h3>Your Optional Topic Filters</h3>
-            </div>
-          </div>
-
-          <div id="topic-list" class="topic-stack"></div>
-        </section>
 
         <section class="panel-block">
           <div class="panel-topline">
@@ -62,17 +46,6 @@
           </div>
 
           <div id="source-list" class="topic-stack"></div>
-        </section>
-
-        <section class="panel-block">
-          <div class="panel-topline">
-            <div>
-              <p class="section-label">Suggestions</p>
-              <h3>Suggested Aerosol Modeling Topics</h3>
-            </div>
-          </div>
-
-          <div id="suggested-topics" class="chips"></div>
         </section>
       </main>
     </div>
